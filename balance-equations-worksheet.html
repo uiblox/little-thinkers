@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Balance the Board</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&family=Nunito:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --board: #2f4a41;
+    --board-dark: #23372f;
+    --frame: #8a5a35;
+    --frame-dark: #6e4728;
+    --chalk: #f2efe6;
+    --chalk-dim: #cdd6cd;
+    --chalk-yellow: #f2cd60;
+    --chalk-yellow-dark: #d8ad33;
+    --good: #74c69d;
+    --good-dark: #4e9c76;
+    --bad: #e2704f;
+    --bad-dark: #c2523a;
+    --shadow: rgba(0,0,0,0.35);
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    height: 100%;
+  }
+
+  html {
+    scroll-padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  body {
+    margin: 0;
+    min-height: 100%;
+    background: var(--board-dark);
+    background-image:
+      radial-gradient(ellipse at 20% 10%, rgba(255,255,255,0.03), transparent 40%),
+      radial-gradient(ellipse at 80% 90%, rgba(255,255,255,0.03), transparent 40%);
+    color: var(--chalk);
+    font-family: 'Nunito', system-ui, sans-serif;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .frame {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 28px 20px 60px;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    border-bottom: 6px solid var(--frame);
+    padding: 10px 6px 22px;
+    margin-bottom: 34px;
+  }
+
+  h1 {
+    font-family: 'Patrick Hand', cursive;
+    font-weight: 400;
+    font-size: clamp(1.8rem, 5vw, 2.6rem);
+    margin: 0;
+    letter-spacing: 0.5px;
+    color: var(--chalk);
+    text-shadow: 0 0 14px rgba(242,239,230,0.15);
+  }
+
+  .subtitle {
+    font-family: 'Patrick Hand', cursive;
+    font-size: 1.05rem;
+    color: var(--chalk-dim);
+    margin-top: 4px;
+  }
+
+  .score {
+    font-family: 'Nunito', sans-serif;
+    font-weight: 700;
+    font-size: 1rem;
+    color: var(--chalk-dim);
+    background: rgba(0,0,0,0.2);
+    border: 2px solid rgba(242,239,230,0.15);
+    border-radius: 999px;
+    padding: 8px 18px;
+    white-space: nowrap;
+  }
+
+  .score strong {
+    color: var(--chalk-yellow);
+    font-size: 1.15rem;
+  }
+
+  button.reset {
+    font-family: 'Patrick Hand', cursive;
+    font-size: 1.15rem;
+    background: var(--frame);
+    color: var(--chalk);
+    border: none;
+    border-bottom: 4px solid var(--frame-dark);
+    border-radius: 10px;
+    padding: 10px 22px;
+    cursor: pointer;
+    transition: transform 0.08s ease, border-bottom-width 0.08s ease;
+  }
+
+  button.reset:hover { filter: brightness(1.08); }
+
+  button.reset:active {
+    transform: translateY(3px);
+    border-bottom-width: 1px;
+  }
+
+  button.reset:focus-visible,
+  .answer-input:focus-visible,
+  button.check:focus-visible {
+    outline: 3px solid var(--chalk-yellow);
+    outline-offset: 2px;
+  }
+
+  .difficulty-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-family: 'Patrick Hand', cursive;
+    font-size: 1rem;
+    color: var(--chalk-dim);
+  }
+
+  .switch {
+    position: relative;
+    display: inline-block;
+    width: 46px;
+    height: 26px;
+    flex-shrink: 0;
+  }
+
+  .switch input {
+    position: absolute;
+    opacity: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    cursor: pointer;
+  }
+
+  .switch-track {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.3);
+    border: 2px solid rgba(242,239,230,0.2);
+    border-radius: 999px;
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+
+  .switch-track::before {
+    content: '';
+    position: absolute;
+    top: 1px;
+    left: 1px;
+    width: 18px;
+    height: 18px;
+    background: var(--chalk);
+    border-radius: 50%;
+    transition: transform 0.15s ease;
+  }
+
+  .switch input:checked + .switch-track {
+    background: var(--chalk-yellow-dark);
+    border-color: var(--chalk-yellow);
+  }
+
+  .switch input:checked + .switch-track::before {
+    transform: translateX(20px);
+    background: #33260a;
+  }
+
+  .switch input:focus-visible + .switch-track {
+    outline: 3px solid var(--chalk-yellow);
+    outline-offset: 2px;
+  }
+
+  .mode-toggle {
+    display: inline-flex;
+    background: rgba(0,0,0,0.25);
+    border: 2px solid rgba(242,239,230,0.15);
+    border-radius: 999px;
+    padding: 3px;
+    gap: 2px;
+  }
+
+  .mode-btn {
+    font-family: 'Patrick Hand', cursive;
+    font-size: 1rem;
+    background: transparent;
+    color: var(--chalk-dim);
+    border: none;
+    border-radius: 999px;
+    padding: 7px 16px;
+    cursor: pointer;
+    transition: background 0.12s ease, color 0.12s ease;
+  }
+
+  .mode-btn:hover { color: var(--chalk); }
+
+  .mode-btn.active {
+    background: var(--chalk-yellow);
+    color: #33260a;
+  }
+
+  .mode-btn:focus-visible {
+    outline: 3px solid var(--chalk-yellow);
+    outline-offset: 2px;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 22px;
+  }
+
+  .card {
+    background: var(--board);
+    border: 2px dashed rgba(242,239,230,0.25);
+    border-radius: 14px;
+    padding: 22px 18px 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    box-shadow: 0 6px 14px var(--shadow);
+    transition: box-shadow 0.15s ease, border-color 0.15s ease;
+  }
+
+  .card.correct { border-color: var(--good); box-shadow: 0 0 0 2px var(--good) inset, 0 6px 14px var(--shadow); }
+  .card.incorrect { border-color: var(--bad); box-shadow: 0 0 0 2px var(--bad) inset, 0 6px 14px var(--shadow); }
+
+  .equation {
+    font-family: 'Nunito', sans-serif;
+    font-weight: 800;
+    font-size: clamp(1.4rem, 4.5vw, 1.9rem);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    color: var(--chalk);
+    text-align: center;
+  }
+
+  .op, .eq { color: var(--chalk-dim); font-weight: 700; }
+
+  .answer-input {
+    width: 3.4em;
+    font-family: 'Nunito', sans-serif;
+    font-weight: 800;
+    font-size: 1em;
+    text-align: center;
+    background: rgba(242,239,230,0.08);
+    border: 2px solid var(--chalk-yellow);
+    border-radius: 8px;
+    color: var(--chalk-yellow);
+    padding: 4px 2px;
+    -moz-appearance: textfield;
+  }
+
+  .answer-input::-webkit-outer-spin-button,
+  .answer-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  .answer-input::placeholder { color: rgba(242,205,96,0.35); }
+
+  .card.correct .answer-input { border-color: var(--good); color: var(--good); }
+  .card.incorrect .answer-input { border-color: var(--bad); color: var(--bad); }
+
+  button.check {
+    font-family: 'Patrick Hand', cursive;
+    font-size: 1.1rem;
+    background: var(--chalk-yellow);
+    color: #33260a;
+    border: none;
+    border-bottom: 4px solid var(--chalk-yellow-dark);
+    border-radius: 10px;
+    padding: 8px 24px;
+    cursor: pointer;
+    transition: transform 0.08s ease, border-bottom-width 0.08s ease;
+  }
+
+  button.check:hover { filter: brightness(1.05); }
+
+  button.check:active {
+    transform: translateY(3px);
+    border-bottom-width: 1px;
+  }
+
+  .feedback {
+    font-family: 'Patrick Hand', cursive;
+    font-size: 1.1rem;
+    min-height: 1.4em;
+    text-align: center;
+  }
+
+  .feedback.correct { color: var(--good); }
+  .feedback.incorrect { color: var(--bad); }
+
+  .confetti-piece {
+    position: fixed;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+    border-radius: 2px;
+    animation-name: confetti-burst;
+    animation-timing-function: cubic-bezier(0.25, 0.8, 0.4, 1);
+    animation-fill-mode: forwards;
+    z-index: 9999;
+    will-change: transform, opacity;
+  }
+
+  @keyframes confetti-burst {
+    0% { transform: translate(-50%, -50%) rotate(0deg); opacity: 1; }
+    100% { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) rotate(var(--rot)); opacity: 0; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .confetti-piece { display: none; }
+  }
+
+  footer {
+    text-align: center;
+    color: var(--chalk-dim);
+    font-family: 'Patrick Hand', cursive;
+    font-size: 0.95rem;
+    margin-top: 44px;
+    opacity: 0.8;
+  }
+
+  @media (max-width: 420px) {
+    .card { padding: 18px 14px 16px; }
+    header { justify-content: center; text-align: center; }
+  }
+</style>
+</head>
+<body>
+  <div class="frame">
+    <header>
+      <div>
+        <h1>Balance the Board</h1>
+        <div class="subtitle">Find the missing number so both sides match.</div>
+      </div>
+      <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap; justify-content:flex-end;">
+        <label class="difficulty-toggle" for="difficultyInput">
+          <span class="switch">
+            <input type="checkbox" id="difficultyInput">
+            <span class="switch-track" aria-hidden="true"></span>
+          </span>
+          Harder (2-digit numbers)
+        </label>
+        <div class="mode-toggle" id="modeToggle" role="group" aria-label="Operation mode">
+          <button class="mode-btn active" type="button" data-mode="add">Addition</button>
+          <button class="mode-btn" type="button" data-mode="sub">Subtraction</button>
+          <button class="mode-btn" type="button" data-mode="mixed">Mixed</button>
+        </div>
+        <div class="score">Solved: <strong id="scoreCount">0</strong> / <span id="totalCount">0</span></div>
+        <button class="reset" id="resetBtn" type="button">New equations</button>
+      </div>
+    </header>
+
+    <div class="grid" id="grid"></div>
+
+    <footer>Chalk it up, one equation at a time.</footer>
+  </div>
+
+<script>
+(function () {
+  const NUM_PROBLEMS = 10;
+  const grid = document.getElementById('grid');
+  const scoreCountEl = document.getElementById('scoreCount');
+  const totalCountEl = document.getElementById('totalCount');
+  const resetBtn = document.getElementById('resetBtn');
+  const modeToggle = document.getElementById('modeToggle');
+  const difficultyInput = document.getElementById('difficultyInput');
+
+  let problems = [];
+  let currentMode = 'add'; // 'add' | 'sub' | 'mixed'
+  let isHard = false;
+
+  function randInt(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
+
+  const CONFETTI_COLORS = ['#f2cd60', '#74c69d', '#e2704f', '#8ec9e0', '#f2efe6'];
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function popConfetti(x, y) {
+    if (prefersReducedMotion) return;
+
+    const count = 28;
+    for (let i = 0; i < count; i++) {
+      const piece = document.createElement('div');
+      piece.className = 'confetti-piece';
+
+      const dx = (Math.random() - 0.5) * 260;
+      const dy = 90 + Math.random() * 220;
+      const rot = Math.random() * 720 - 360;
+      const width = 5 + Math.random() * 6;
+      const height = width * (0.4 + Math.random() * 0.3);
+      const duration = 700 + Math.random() * 500;
+
+      piece.style.setProperty('--dx', `${dx}px`);
+      piece.style.setProperty('--dy', `${dy}px`);
+      piece.style.setProperty('--rot', `${rot}deg`);
+      piece.style.left = `${x}px`;
+      piece.style.top = `${y}px`;
+      piece.style.width = `${width}px`;
+      piece.style.height = `${height}px`;
+      piece.style.background = CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)];
+      piece.style.animationDuration = `${duration}ms`;
+
+      document.body.appendChild(piece);
+      piece.addEventListener('animationend', () => piece.remove());
+    }
+  }
+
+  // Decide the operator used on the left side and the operator used on the
+  // right side, based on the selected mode.
+  //   add   -> both sides use +
+  //   sub   -> both sides use -
+  //   mixed -> one side +, the other -, picked at random each time
+  function pickOperators(mode) {
+    if (mode === 'add') return { opLeft: '+', opRight: '+' };
+    if (mode === 'sub') return { opLeft: '-', opRight: '-' };
+    return Math.random() < 0.5
+      ? { opLeft: '+', opRight: '-' }
+      : { opLeft: '-', opRight: '+' };
+  }
+
+  // Build one problem. Left side is "a opLeft b" (both visible).
+  // Right side is "num1 opRight num2", one of num1/num2 is hidden,
+  // and the visible arrangement always makes num1 opRight num2 === left.
+  function makeProblem(mode, hard) {
+    const { opLeft, opRight } = pickOperators(mode);
+
+    let a, b, left;
+    if (opLeft === '+') {
+      if (hard) {
+        a = randInt(10, 99);
+        b = randInt(10, 99);
+      } else {
+        a = randInt(1, 20);
+        b = randInt(1, 20);
+      }
+      left = a + b;
+    } else {
+      // a - b = left, keep left non-negative
+      if (hard) {
+        a = randInt(50, 99);
+        b = randInt(0, a);
+      } else {
+        a = randInt(5, 20);
+        b = randInt(0, a);
+      }
+      left = a - b;
+    }
+
+    let num1, num2;
+    if (opRight === '+') {
+      num1 = randInt(0, left);
+      num2 = left - num1;
+    } else {
+      // num1 - num2 = left  ->  num1 = left + num2
+      num2 = hard ? randInt(10, 40) : randInt(0, 15);
+      num1 = left + num2;
+    }
+
+    const hiddenSlot = Math.random() < 0.5 ? 1 : 2; // which of num1/num2 is the blank
+    const answer = hiddenSlot === 1 ? num1 : num2;
+
+    return { a, b, left, opLeft, opRight, num1, num2, hiddenSlot, answer, solved: false };
+  }
+
+  function buildEquationMarkup(p, index) {
+    const slot1 = p.hiddenSlot === 1
+      ? `<input type="number" class="answer-input" id="input-${index}" aria-label="Missing number" placeholder="?">`
+      : `<span>${p.num1}</span>`;
+    const slot2 = p.hiddenSlot === 2
+      ? `<input type="number" class="answer-input" id="input-${index}" aria-label="Missing number" placeholder="?">`
+      : `<span>${p.num2}</span>`;
+
+    return `
+      <span>${p.a}</span>
+      <span class="op">${p.opLeft}</span>
+      <span>${p.b}</span>
+      <span class="eq">=</span>
+      ${slot1}
+      <span class="op">${p.opRight}</span>
+      ${slot2}
+    `;
+  }
+
+  function render() {
+    grid.innerHTML = '';
+    totalCountEl.textContent = String(problems.length);
+    updateScore();
+
+    problems.forEach((p, index) => {
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.id = `card-${index}`;
+
+      card.innerHTML = `
+        <div class="equation" id="eq-${index}">${buildEquationMarkup(p, index)}</div>
+        <button class="check" type="button" data-index="${index}">Check</button>
+        <div class="feedback" id="feedback-${index}"></div>
+      `;
+
+      grid.appendChild(card);
+    });
+
+    grid.querySelectorAll('button.check').forEach(btn => {
+      btn.addEventListener('click', () => checkAnswer(Number(btn.dataset.index)));
+    });
+
+    grid.querySelectorAll('.answer-input').forEach(input => {
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          const idx = Number(input.id.split('-')[1]);
+          checkAnswer(idx);
+        }
+      });
+    });
+  }
+
+  function updateScore() {
+    const solvedCount = problems.filter(p => p.solved).length;
+    scoreCountEl.textContent = String(solvedCount);
+  }
+
+  function checkAnswer(index) {
+    const p = problems[index];
+    const input = document.getElementById(`input-${index}`);
+    const feedback = document.getElementById(`feedback-${index}`);
+    const card = document.getElementById(`card-${index}`);
+    const raw = input.value.trim();
+
+    if (raw === '') {
+      feedback.textContent = 'Enter a number first.';
+      feedback.className = 'feedback incorrect';
+      return;
+    }
+
+    const guess = Number(raw);
+    const isCorrect = guess === p.answer;
+
+    card.classList.remove('correct', 'incorrect');
+    feedback.classList.remove('correct', 'incorrect');
+
+    if (isCorrect) {
+      card.classList.add('correct');
+      feedback.classList.add('correct');
+      feedback.textContent = 'Correct! The board balances.';
+      p.solved = true;
+
+      const rect = card.getBoundingClientRect();
+      popConfetti(rect.left + rect.width / 2, rect.top + rect.height / 3);
+    } else {
+      card.classList.add('incorrect');
+      feedback.classList.add('incorrect');
+      feedback.textContent = 'Not quite, try again.';
+      p.solved = false;
+    }
+
+    updateScore();
+  }
+
+  function newRound() {
+    problems = Array.from({ length: NUM_PROBLEMS }, () => makeProblem(currentMode, isHard));
+    render();
+  }
+
+  resetBtn.addEventListener('click', newRound);
+
+  difficultyInput.addEventListener('change', () => {
+    isHard = difficultyInput.checked;
+    newRound();
+  });
+
+  modeToggle.addEventListener('click', (e) => {
+    const btn = e.target.closest('.mode-btn');
+    if (!btn || btn.classList.contains('active')) return;
+
+    modeToggle.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentMode = btn.dataset.mode;
+    newRound();
+  });
+
+  newRound();
+})();
+</script>
+</body>
+</html>
