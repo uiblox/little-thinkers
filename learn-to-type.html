@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Star Typer</title>
+<style>
+  :root {
+    --space: #05060f;
+    --panel: #0d1226;
+    --panel-line: #26305c;
+    --gold: #ffe81f;
+    --gold-dark: #c8b400;
+    --text: #e8ecff;
+    --dim: #8791c4;
+    --good: #5dff9e;
+    --bad: #ff5d5d;
+    --laser: #ff3b3b;
+    --blue: #4fc3ff;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body { height: 100%; }
+
+  body {
+    margin: 0;
+    background: var(--space);
+    color: var(--text);
+    font-family: "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  #stage {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  #hud {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 16px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    pointer-events: none;
+    text-shadow: 0 0 8px rgba(0,0,0,.9);
+  }
+  #hud .label { color: var(--dim); font-size: 12px; text-transform: uppercase; }
+  #hud .value { color: var(--gold); font-size: 22px; }
+  #shields { font-size: 22px; letter-spacing: 4px; }
+  #progress {
+    width: 160px; height: 10px; border-radius: 6px;
+    background: #1a2144; border: 1px solid var(--panel-line); overflow: hidden;
+  }
+  #progress i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--blue), var(--good)); transition: width .25s; }
+
+  /* Overlays */
+  .overlay {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: radial-gradient(ellipse at center, rgba(5,6,15,.78), rgba(5,6,15,.95));
+    text-align: center;
+    padding: 20px;
+    overflow-y: auto;
+  }
+  .overlay.hidden { display: none; }
+
+  h1 {
+    margin: 0 0 6px;
+    font-size: clamp(36px, 8vw, 72px);
+    color: var(--gold);
+    letter-spacing: 6px;
+    text-transform: uppercase;
+    text-shadow: 0 0 18px rgba(255,232,31,.45);
+  }
+  h2 { margin: 0 0 8px; color: var(--gold); font-size: clamp(26px, 5vw, 44px); letter-spacing: 3px; text-transform: uppercase; }
+  p.sub { margin: 0 0 22px; color: var(--dim); font-size: clamp(14px, 2.4vw, 20px); max-width: 560px; line-height: 1.4; }
+
+  .levels {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 12px;
+    width: min(760px, 100%);
+    margin-bottom: 18px;
+  }
+  button {
+    font: inherit;
+    cursor: pointer;
+    border: 2px solid var(--panel-line);
+    background: var(--panel);
+    color: var(--text);
+    border-radius: 12px;
+    padding: 12px 14px;
+    transition: transform .08s, border-color .15s, background .15s;
+  }
+  button:hover { border-color: var(--gold); background: #141b38; }
+  button:active { transform: scale(.97); }
+  .lvl { text-align: left; }
+  .lvl b { display: block; color: var(--gold); font-size: 17px; }
+  .lvl span { display: block; color: var(--dim); font-size: 13px; margin-top: 2px; }
+  .lvl .stars { color: var(--gold); letter-spacing: 3px; margin-top: 4px; font-size: 15px; min-height: 18px; }
+  .lvl.locked { opacity: .4; cursor: not-allowed; }
+  .lvl.locked:hover { border-color: var(--panel-line); background: var(--panel); }
+
+  .big {
+    background: var(--gold); color: #1a1600; border-color: var(--gold-dark);
+    font-weight: 800; font-size: 20px; letter-spacing: 2px; text-transform: uppercase;
+    padding: 14px 34px; box-shadow: 0 0 22px rgba(255,232,31,.35);
+  }
+  .big:hover { background: #fff36b; border-color: var(--gold); }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+
+  /* Keyboard */
+  #kbd {
+    flex: 0 0 auto;
+    background: var(--panel);
+    border-top: 2px solid var(--panel-line);
+    padding: 10px 8px calc(10px + env(safe-area-inset-bottom, 0px));
+    display: flex; flex-direction: column; align-items: center; gap: 5px;
+  }
+  .krow { display: flex; gap: 5px; }
+  .key {
+    width: clamp(28px, 6.4vw, 54px);
+    height: clamp(28px, 5.4vw, 46px);
+    border-radius: 8px;
+    border: 2px solid var(--panel-line);
+    background: #121935;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: clamp(13px, 2.4vw, 20px);
+    color: var(--dim);
+    position: relative;
+    transition: background .1s, transform .1s, box-shadow .1s;
+  }
+  .key.space { width: clamp(160px, 38vw, 330px); }
+  .key.bump::after {
+    content: ""; position: absolute; bottom: 4px; width: 40%; height: 3px; border-radius: 2px; background: currentColor; opacity: .6;
+  }
+  .key.next {
+    background: var(--gold); color: #1a1600; border-color: #fff;
+    transform: translateY(-3px) scale(1.08);
+    box-shadow: 0 0 18px rgba(255,232,31,.8);
+  }
+  .key.press { background: var(--blue); color: #001; transform: scale(.92); }
+  .key.wrong { background: var(--bad); color: #fff; }
+  #hint { color: var(--dim); font-size: 14px; height: 20px; margin-bottom: 2px; font-weight: 700; letter-spacing: 1px; }
+  #hint b { color: var(--gold); }
+
+  .stats { display: flex; gap: 28px; justify-content: center; margin: 4px 0 22px; }
+  .stats div { font-size: 13px; color: var(--dim); text-transform: uppercase; letter-spacing: 1px; }
+  .stats b { display: block; font-size: 30px; color: var(--gold); letter-spacing: 0; }
+  .bigstars { font-size: clamp(36px, 8vw, 64px); color: var(--gold); letter-spacing: 8px; margin-bottom: 8px; text-shadow: 0 0 18px rgba(255,232,31,.5); }
+  .bigstars .off { color: #2b3260; text-shadow: none; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .key, #progress i { transition: none; }
+  }
+</style>
+</head>
+<body>
+
+<div id="stage">
+  <canvas id="c"></canvas>
+
+  <div id="hud">
+    <div><div class="label">Score</div><div class="value" id="score">0</div></div>
+    <div style="text-align:center">
+      <div class="label" id="lvlName">Mission</div>
+      <div id="progress"><i></i></div>
+    </div>
+    <div style="text-align:right"><div class="label">Shields</div><div class="value" id="shields"></div></div>
+  </div>
+
+  <div class="overlay" id="menu">
+    <h1>Star Typer</h1>
+    <p class="sub">A long time ago, in a galaxy far, far away… the Rebel pilot needs YOUR fingers! Type the letters to blast the enemy ships before they reach you.</p>
+    <div class="levels" id="levelList"></div>
+    <p class="sub" style="margin:0">Keep your fingers on the glowing keys. Wrong keys never hurt you — just try again!</p>
+  </div>
+
+  <div class="overlay hidden" id="end">
+    <h2 id="endTitle">Mission Complete!</h2>
+    <div class="bigstars" id="endStars"></div>
+    <p class="sub" id="endMsg"></p>
+    <div class="stats">
+      <div><b id="stScore">0</b>Score</div>
+      <div><b id="stAcc">0%</b>Accuracy</div>
+      <div><b id="stWpm">0</b>Letters / min</div>
+    </div>
+    <div class="row">
+      <button class="big" id="btnNext">Next Mission</button>
+      <button id="btnRetry">Try Again</button>
+      <button id="btnMenu">Missions</button>
+    </div>
+  </div>
+
+  <div class="overlay hidden" id="intro">
+    <h2 id="introTitle"></h2>
+    <p class="sub" id="introText"></p>
+    <button class="big" id="btnGo">Press Enter to Launch</button>
+  </div>
+</div>
+
+<div id="kbd">
+  <div id="hint"></div>
+  <div id="rows"></div>
+</div>
+
+<script>
+(() => {
+'use strict';
+
+/* ---------- Missions ---------- */
+const MISSIONS = [
+  { name: 'Home Row',      desc: 'a s d f  j k l ;',        kind: 'letters', pool: 'asdfjkl;', goal: 14, speed: 38,  gap: 2.4, tip: 'Rest your fingers on the bumps on F and J.' },
+  { name: 'Home Row Plus', desc: 'g h and friends',          kind: 'letters', pool: 'asdfjklgh', goal: 16, speed: 44, gap: 2.2, tip: 'Index fingers reach sideways for G and H.' },
+  { name: 'Top Row',       desc: 'q w e r t y u i o p',      kind: 'letters', pool: 'qwertyuiop', goal: 18, speed: 46, gap: 2.1, tip: 'Reach up, then come back home to the middle row.' },
+  { name: 'Bottom Row',    desc: 'z x c v b n m',           kind: 'letters', pool: 'zxcvbnm', goal: 18, speed: 46, gap: 2.1, tip: 'Reach down, then come back home.' },
+  { name: 'All Letters',   desc: 'the whole keyboard',       kind: 'letters', pool: 'abcdefghijklmnopqrstuvwxyz', goal: 24, speed: 52, gap: 1.8, tip: 'Use the finger that is closest to each key.' },
+  { name: 'Easy Words',    desc: 'short words',              kind: 'words',
+    pool: ['cat','dog','sun','star','moon','ship','fast','go','up','red','blue','fly','jump','fun','sky'], goal: 12, speed: 30, gap: 3.2, tip: 'Type the whole word, one letter at a time.' },
+  { name: 'Jedi Words',    desc: 'words from the galaxy',    kind: 'words',
+    pool: ['jedi','force','droid','yoda','laser','rebel','galaxy','planet','pilot','saber','falcon','empire','hope','light','trooper','wookiee','rocket','comet','orbit','alien'], goal: 14, speed: 30, gap: 3.0, tip: 'May the Force be with your fingers!' },
+];
+
+/* ---------- Keyboard layout + fingers ---------- */
+const ROWS = ['qwertyuiop', 'asdfghjkl;', 'zxcvbnm', ' '];
+const FINGER = {};
+[['q','a','z'],['w','s','x'],['e','d','c'],['r','f','v','t','g','b'],[],[],['y','h','n','u','j','m'],['i','k'],['o','l'],['p',';']]
+  .forEach((keys, i) => keys.forEach(k => FINGER[k] = i));
+const FINGER_NAMES = ['left pinky','left ring finger','left middle finger','left pointer finger','left thumb','right thumb','right pointer finger','right middle finger','right ring finger','right pinky'];
+const FINGER_COLORS = ['#ff7ad9','#ffa14d','#ffe81f','#5dff9e','#9aa3d6','#9aa3d6','#4fc3ff','#9d7aff','#ff7a7a','#ff9bd0'];
+
+const keyEls = {};
+const rowsEl = document.getElementById('rows');
+ROWS.forEach((r, ri) => {
+  const row = document.createElement('div');
+  row.className = 'krow';
+  row.style.marginLeft = ri === 1 ? '14px' : ri === 2 ? '34px' : '0';
+  [...r].forEach(ch => {
+    const k = document.createElement('div');
+    k.className = 'key' + (ch === ' ' ? ' space' : '') + ((ch === 'f' || ch === 'j') ? ' bump' : '');
+    k.textContent = ch === ' ' ? 'space' : ch.toUpperCase();
+    if (FINGER[ch] !== undefined) k.style.borderColor = FINGER_COLORS[FINGER[ch]] + '66';
+    keyEls[ch] = k;
+    row.appendChild(k);
+  });
+  rowsEl.appendChild(row);
+});
+rowsEl.style.display = 'flex';
+rowsEl.style.flexDirection = 'column';
+rowsEl.style.alignItems = 'center';
+rowsEl.style.gap = '5px';
+
+/* ---------- Audio ---------- */
+let actx = null;
+function audio() {
+  if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} }
+  return actx;
+}
+function tone(freq, dur, type = 'square', vol = 0.06, slide = 0) {
+  const a = audio(); if (!a) return;
+  const o = a.createOscillator(), g = a.createGain();
+  o.type = type; o.frequency.value = freq;
+  if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, freq + slide), a.currentTime + dur);
+  g.gain.setValueAtTime(vol, a.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.0001, a.currentTime + dur);
+  o.connect(g); g.connect(a.destination);
+  o.start(); o.stop(a.currentTime + dur);
+}
+const sfx = {
+  laser: () => tone(900, 0.18, 'sawtooth', 0.05, -700),
+  boom:  () => { tone(140, 0.35, 'sawtooth', 0.08, -100); tone(60, 0.4, 'square', 0.06, -20); },
+  hit:   () => tone(500, 0.08, 'square', 0.04, -150),
+  wrong: () => tone(130, 0.15, 'triangle', 0.07),
+  hurt:  () => tone(200, 0.4, 'sawtooth', 0.08, -150),
+  win:   () => [523,659,784,1047].forEach((f, i) => setTimeout(() => tone(f, 0.25, 'triangle', 0.07), i * 120)),
+};
+
+/* ---------- Save data ---------- */
+let saved = {};
+try { saved = JSON.parse(localStorage.getItem('starTyper') || '{}'); } catch (e) {}
+function save() { try { localStorage.setItem('starTyper', JSON.stringify(saved)); } catch (e) {} }
+
+/* ---------- DOM ---------- */
+const $ = id => document.getElementById(id);
+const canvas = $('c'), ctx = canvas.getContext('2d');
+let W = 0, H = 0, DPR = 1;
+function resize() {
+  const r = canvas.getBoundingClientRect();
+  DPR = window.devicePixelRatio || 1;
+  W = r.width; H = r.height;
+  canvas.width = W * DPR; canvas.height = H * DPR;
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+window.addEventListener('resize', resize);
+
+/* ---------- State ---------- */
+let state = 'menu'; // menu | intro | play | end
+let mi = 0, mission = null;
+let enemies = [], lasers = [], particles = [], floaters = [];
+let score, shields, kills, spawnTimer, target, shake, typed, correct, startTime, elapsed;
+let lastWord = '';
+const stars = Array.from({ length: 120 }, () => ({ x: Math.random(), y: Math.random(), z: Math.random() * 0.9 + 0.1 }));
+const MAX_SHIELDS = 5;
+
+function stars3(n) { return '★'.repeat(n) + '<span class="off">' + '★'.repeat(3 - n) + '</span>'; }
+
+/* ---------- Menu ---------- */
+function buildMenu() {
+  const list = $('levelList');
+  list.innerHTML = '';
+  MISSIONS.forEach((m, i) => {
+    const unlocked = i === 0 || (saved[i - 1] || 0) > 0;
+    const b = document.createElement('button');
+    b.className = 'lvl' + (unlocked ? '' : ' locked');
+    const s = saved[i] || 0;
+    b.innerHTML = `<b>${i + 1}. ${m.name}</b><span>${m.desc}</span><div class="stars">${s ? '★'.repeat(s) + '☆'.repeat(3 - s) : (unlocked ? '☆☆☆' : '🔒')}</div>`;
+    if (unlocked) b.onclick = () => showIntro(i);
+    list.appendChild(b);
+  });
+}
+function show(id) { ['menu', 'end', 'intro'].forEach(x => $(x).classList.toggle('hidden', x !== id)); }
+
+function showIntro(i) {
+  mi = i; mission = MISSIONS[i];
+  state = 'intro';
+  $('introTitle').textContent = `Mission ${i + 1}: ${mission.name}`;
+  $('introText').textContent = mission.tip + (mission.kind === 'words' ? ' Start typing a word to lock on, then finish it.' : '');
+  show('intro');
+  audio();
+  setHint(null);
+}
+
+/* ---------- Game flow ---------- */
+function startMission() {
+  score = 0; shields = MAX_SHIELDS; kills = 0; spawnTimer = 0.6;
+  enemies = []; lasers = []; particles = []; floaters = [];
+  target = null; shake = 0; typed = 0; correct = 0; elapsed = 0; lastWord = '';
+  startTime = performance.now();
+  state = 'play';
+  show(null);
+  $('lvlName').textContent = `Mission ${mi + 1}: ${mission.name}`;
+  updateHud();
+  refreshHint();
+}
+
+function endMission(won) {
+  state = 'end';
+  setHint(null);
+  const acc = typed ? Math.round(correct / typed * 100) : 100;
+  const mins = Math.max(elapsed, 1) / 60;
+  const lpm = Math.round(correct / mins);
+  let st = 0;
+  if (won) st = shields >= 4 && acc >= 90 ? 3 : shields >= 2 && acc >= 75 ? 2 : 1;
+  if (won && st > (saved[mi] || 0)) { saved[mi] = st; save(); }
+  $('endTitle').textContent = won ? 'Mission Complete!' : 'Shields Down!';
+  $('endStars').innerHTML = won ? stars3(st) : '';
+  $('endMsg').textContent = won
+    ? (st === 3 ? 'Incredible flying, pilot! The Rebellion is proud.' : 'The enemy has been beaten back. Great work!')
+    : 'Do not give up, young pilot. Every Jedi had to practice!';
+  $('stScore').textContent = score;
+  $('stAcc').textContent = acc + '%';
+  $('stWpm').textContent = lpm;
+  $('btnNext').style.display = won && mi < MISSIONS.length - 1 ? '' : 'none';
+  show('end');
+  won ? sfx.win() : sfx.hurt();
+}
+
+function updateHud() {
+  $('score').textContent = score;
+  $('shields').textContent = '🛡'.repeat(Math.max(shields, 0)) + '·'.repeat(MAX_SHIELDS - Math.max(shields, 0));
+  $('progress').firstElementChild.style.width = Math.min(100, kills / mission.goal * 100) + '%';
+}
+
+/* ---------- Enemies ---------- */
+function pickLabel() {
+  if (mission.kind === 'letters') {
+    // avoid two enemies with the same first letter on screen when possible
+    const used = new Set(enemies.map(e => e.text[0]));
+    const free = [...mission.pool].filter(c => !used.has(c));
+    const src = free.length ? free : [...mission.pool];
+    return src[Math.floor(Math.random() * src.length)];
+  }
+  const used = new Set(enemies.map(e => e.text[0]));
+  let opts = mission.pool.filter(w => !used.has(w[0]) && w !== lastWord);
+  if (!opts.length) opts = mission.pool.filter(w => w !== lastWord);
+  const w = opts[Math.floor(Math.random() * opts.length)];
+  lastWord = w;
+  return w;
+}
+
+function spawn() {
+  const text = pickLabel();
+  const margin = 70 + (mission.kind === 'words' ? text.length * 6 : 0);
+  let x;
+  for (let tries = 0; tries < 8; tries++) {
+    x = margin + Math.random() * (W - margin * 2);
+    if (enemies.every(e => Math.abs(e.x - x) > 110 || e.y > 140)) break;
+  }
+  enemies.push({
+    x, y: -40, text, done: 0,
+    vy: mission.speed * (0.85 + Math.random() * 0.3) * (0.8 + (1 - W / 2400) * 0.2),
+    wob: Math.random() * Math.PI * 2, flash: 0,
+  });
+}
+
+/* ---------- Input ---------- */
+function press(ch) {
+  const kel = keyEls[ch];
+  if (kel) { kel.classList.add('press'); setTimeout(() => kel.classList.remove('press'), 110); }
+}
+function wrongKey(ch) {
+  const kel = keyEls[ch];
+  if (kel) { kel.classList.add('wrong'); setTimeout(() => kel.classList.remove('wrong'), 200); }
+  shake = 0.25; sfx.wrong();
+}
+
+function fire(e, kill) {
+  lasers.push({ x1: W / 2, y1: H - 50, x2: e.dx ?? e.x, y2: e.y, life: 0.16 });
+  sfx.laser();
+  e.flash = 0.12;
+  if (kill) explode(e);
+  else sfx.hit();
+}
+
+function explode(e) {
+  sfx.boom();
+  for (let i = 0; i < 28; i++) {
+    const a = Math.random() * Math.PI * 2, s = 60 + Math.random() * 220;
+    particles.push({ x: e.x, y: e.y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 0.6 + Math.random() * 0.4, max: 1, c: ['#ffe81f', '#ff8a2b', '#ff3b3b', '#fff'][i % 4] });
+  }
+  const pts = 10 * e.text.length;
+  score += pts;
+  floaters.push({ x: e.x, y: e.y, text: '+' + pts, life: 0.9 });
+  enemies.splice(enemies.indexOf(e), 1);
+  kills++;
+  updateHud();
+  if (kills >= mission.goal) setTimeout(() => state === 'play' && endMission(true), 700);
+}
+
+function handleChar(ch) {
+  if (state !== 'play') return;
+  typed++;
+  press(ch);
+  // continue locked target, else look for the lowest enemy starting with this letter
+  let e = target;
+  if (!e || e.text[e.done] !== ch) {
+    if (e) { wrongKey(ch); return; }
+    const cands = enemies.filter(x => x.done === 0 && x.text[0] === ch).sort((a, b) => b.y - a.y);
+    e = cands[0];
+    if (!e) { wrongKey(ch); return; }
+  }
+  correct++;
+  e.done++;
+  if (e.done >= e.text.length) { fire(e, true); target = null; }
+  else { fire(e, false); target = e; }
+  refreshHint();
+}
+
+function nextChar() {
+  if (target) return target.text[target.done];
+  if (!enemies.length) return null;
+  const low = enemies.reduce((a, b) => (b.y > a.y ? b : a));
+  return low.text[0];
+}
+function refreshHint() {
+  if (state !== 'play') return setHint(null);
+  setHint(nextChar());
+}
+let hinted = null;
+function setHint(ch) {
+  if (hinted && keyEls[hinted]) keyEls[hinted].classList.remove('next');
+  hinted = ch;
+  const hint = $('hint');
+  if (ch && keyEls[ch]) {
+    keyEls[ch].classList.add('next');
+    const f = FINGER[ch];
+    hint.innerHTML = f !== undefined ? `Use your <b>${FINGER_NAMES[f]}</b> for <b>${ch.toUpperCase()}</b>` : '&nbsp;';
+  } else hint.innerHTML = '&nbsp;';
+}
+
+window.addEventListener('keydown', ev => {
+  if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
+  if (ev.key === 'Enter') {
+    if (state === 'intro') { startMission(); ev.preventDefault(); }
+    else if (state === 'end') { (!$('btnNext').style.display) ? nextMission() : retry(); ev.preventDefault(); }
+    return;
+  }
+  if (ev.key === 'Escape') { if (state !== 'menu') toMenu(); return; }
+  if (state !== 'play') return;
+  const ch = ev.key.length === 1 ? ev.key.toLowerCase() : null;
+  if (!ch) return;
+  if (/[a-z;]/.test(ch)) { ev.preventDefault(); handleChar(ch); }
+  else if (ch === ' ' || ch === "'" || ch === '/') ev.preventDefault();
+});
+
+function nextMission() { showIntro(Math.min(mi + 1, MISSIONS.length - 1)); }
+function retry() { showIntro(mi); }
+function toMenu() { state = 'menu'; buildMenu(); show('menu'); setHint(null); }
+$('btnGo').onclick = startMission;
+$('btnNext').onclick = nextMission;
+$('btnRetry').onclick = retry;
+$('btnMenu').onclick = toMenu;
+
+/* ---------- Update ---------- */
+function update(dt) {
+  for (const s of stars) { s.y += dt * s.z * 0.06 * (state === 'play' ? 1 : 0.4); if (s.y > 1) { s.y = 0; s.x = Math.random(); } }
+  if (state !== 'play') return;
+  elapsed += dt;
+  shake = Math.max(0, shake - dt);
+
+  spawnTimer -= dt;
+  if (spawnTimer <= 0 && kills + enemies.length < mission.goal) {
+    spawn();
+    spawnTimer = mission.gap * (0.85 + Math.random() * 0.3);
+  }
+  // keep game from stalling when screen is empty
+  if (!enemies.length && kills < mission.goal) spawnTimer = Math.min(spawnTimer, 0.5);
+
+  const groundY = H - 90;
+  for (const e of enemies.slice()) {
+    e.y += e.vy * dt;
+    e.wob += dt * 1.5;
+    e.flash = Math.max(0, e.flash - dt);
+    if (e.y > groundY) {
+      enemies.splice(enemies.indexOf(e), 1);
+      if (target === e) target = null;
+      kills++;               // counts as handled, so the mission always ends
+      shields--;
+      shake = 0.5; sfx.hurt();
+      for (let i = 0; i < 14; i++) particles.push({ x: e.x, y: groundY, vx: (Math.random() - .5) * 200, vy: -Math.random() * 160, life: .5, max: 1, c: '#4fc3ff' });
+      updateHud(); refreshHint();
+      if (shields <= 0) { endMission(false); return; }
+      if (kills >= mission.goal) { endMission(true); return; }
+    }
+  }
+  for (const l of lasers) l.life -= dt;
+  lasers = lasers.filter(l => l.life > 0);
+  for (const p of particles) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 200 * dt; p.life -= dt; }
+  particles = particles.filter(p => p.life > 0);
+  for (const f of floaters) { f.y -= 40 * dt; f.life -= dt; }
+  floaters = floaters.filter(f => f.life > 0);
+  // hint tracks the lowest enemy as it changes
+  if (!target) { const n = nextChar(); if (n !== hinted) setHint(n); }
+}
+
+/* ---------- Draw ---------- */
+function drawTie(e) {
+  const x = e.x + Math.sin(e.wob) * 10, y = e.y;
+  e.dx = x;
+  const lit = e.flash > 0;
+  ctx.save();
+  ctx.translate(x, y);
+  // wings
+  ctx.fillStyle = lit ? '#fff' : '#3a4166';
+  ctx.strokeStyle = '#8b94c9'; ctx.lineWidth = 2;
+  for (const s of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(s * 30, -28); ctx.lineTo(s * 36, -28); ctx.lineTo(s * 36, 28); ctx.lineTo(s * 30, 28); ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(s * 33, -28); ctx.lineTo(s * 33, 28); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(s * 18, 0); ctx.lineTo(s * 30, 0); ctx.stroke();
+  }
+  // cockpit
+  const g = ctx.createRadialGradient(-5, -5, 2, 0, 0, 22);
+  g.addColorStop(0, lit ? '#fff' : '#6c75a8'); g.addColorStop(1, '#232846');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(0, 0, 20, 0, 7); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = target === e ? '#ff5d5d' : '#10142b';
+  ctx.beginPath(); ctx.arc(0, 0, 11, 0, 7); ctx.fill();
+  ctx.restore();
+
+  // label
+  const single = e.text.length === 1;
+  ctx.font = `800 ${single ? 30 : 24}px "Trebuchet MS", system-ui, sans-serif`;
+  ctx.textBaseline = 'middle';
+  const full = single ? e.text.toUpperCase() : e.text;
+  const tw = ctx.measureText(full).width;
+  const px = 12, ph = single ? 40 : 34;
+  const lx = x - tw / 2 - px, ly = y + 40;
+  ctx.fillStyle = 'rgba(8,11,30,.88)';
+  ctx.strokeStyle = target === e ? '#ff5d5d' : '#ffe81f';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.roundRect(lx, ly, tw + px * 2, ph, 10); ctx.fill(); ctx.stroke();
+  ctx.textAlign = 'left';
+  let cx = lx + px;
+  for (let i = 0; i < full.length; i++) {
+    ctx.fillStyle = i < e.done ? '#5dff9e' : (i === e.done && target === e ? '#ffffff' : '#ffe81f');
+    ctx.fillText(full[i], cx, ly + ph / 2 + 1);
+    cx += ctx.measureText(full[i]).width;
+  }
+}
+
+function drawShip() {
+  const x = W / 2, y = H - 50;
+  ctx.save();
+  ctx.translate(x + (shake > 0 ? (Math.random() - .5) * 8 : 0), y);
+  // engines glow
+  ctx.fillStyle = 'rgba(79,195,255,.7)';
+  ctx.beginPath(); ctx.ellipse(0, 26, 7, 12 + Math.random() * 4, 0, 0, 7); ctx.fill();
+  // X-wing-style body
+  ctx.fillStyle = '#d9deef'; ctx.strokeStyle = '#6b739c'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(0, -34); ctx.lineTo(8, -6); ctx.lineTo(8, 24); ctx.lineTo(-8, 24); ctx.lineTo(-8, -6); ctx.closePath(); ctx.fill(); ctx.stroke();
+  for (const s of [-1, 1]) {
+    ctx.fillStyle = '#bfc6e6';
+    ctx.beginPath(); ctx.moveTo(s * 8, 6); ctx.lineTo(s * 38, 22); ctx.lineTo(s * 38, 28); ctx.lineTo(s * 8, 22); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(s * 8, 2); ctx.lineTo(s * 38, -14); ctx.lineTo(s * 38, -8); ctx.lineTo(s * 8, 14); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#ff5d5d'; ctx.fillRect(s * 38 - 2, -16, 4, 8);
+    ctx.fillRect(s * 38 - 2, 20, 4, 8);
+  }
+  ctx.fillStyle = '#4fc3ff';
+  ctx.beginPath(); ctx.ellipse(0, -8, 4, 8, 0, 0, 7); ctx.fill();
+  ctx.restore();
+}
+
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+  const bg = ctx.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, '#02030a'); bg.addColorStop(1, '#0a1030');
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+  for (const s of stars) {
+    ctx.fillStyle = `rgba(255,255,255,${0.3 + s.z * 0.7})`;
+    ctx.fillRect(s.x * W, s.y * H, s.z * 2.2, s.z * 2.2);
+  }
+  if (state === 'play' || state === 'end') {
+    ctx.save();
+    if (shake > 0) ctx.translate((Math.random() - .5) * shake * 16, (Math.random() - .5) * shake * 16);
+    // shield line
+    ctx.strokeStyle = 'rgba(79,195,255,.25)'; ctx.setLineDash([8, 10]); ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, H - 90); ctx.lineTo(W, H - 90); ctx.stroke(); ctx.setLineDash([]);
+    enemies.forEach(drawTie);
+    for (const l of lasers) {
+      const a = l.life / 0.16;
+      ctx.strokeStyle = `rgba(255,59,59,${a})`; ctx.lineWidth = 7 * a + 1; ctx.lineCap = 'round';
+      ctx.shadowColor = '#ff3b3b'; ctx.shadowBlur = 16;
+      ctx.beginPath(); ctx.moveTo(l.x1 - 24, l.y1); ctx.lineTo(l.x2, l.y2); ctx.moveTo(l.x1 + 24, l.y1); ctx.lineTo(l.x2, l.y2); ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+    for (const p of particles) { ctx.globalAlpha = Math.max(0, p.life / p.max); ctx.fillStyle = p.c; ctx.fillRect(p.x, p.y, 4, 4); }
+    ctx.globalAlpha = 1;
+    drawShip();
+    ctx.font = '800 22px "Trebuchet MS", system-ui, sans-serif'; ctx.textAlign = 'center';
+    for (const f of floaters) { ctx.fillStyle = `rgba(255,232,31,${Math.min(1, f.life * 2)})`; ctx.fillText(f.text, f.x, f.y); }
+    ctx.restore();
+  }
+}
+
+/* ---------- Loop ---------- */
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000);
+  last = now;
+  update(dt);
+  draw();
+  requestAnimationFrame(frame);
+}
+
+resize();
+buildMenu();
+show('menu');
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
